@@ -1,0 +1,9 @@
+# some popular IDEs
+.idea
+.vscode
+
+# virtual environment
+venv
+
+# config file
+kimikuri.json
