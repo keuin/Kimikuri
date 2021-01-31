@@ -7,3 +7,6 @@ venv
 
 # config file
 kimikuri.json
+
+# python binaries
+__pycache__
