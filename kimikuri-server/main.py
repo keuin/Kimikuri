@@ -9,7 +9,6 @@ from kuri_config import KuriConfig
 from token_manager import TokenManager
 
 # some basic configurations
-
 CONFIG_FILE = 'kimikuri.json'
 ERR_FAILED_TO_LOG_CONFIG = -10
 
@@ -24,7 +23,6 @@ except IOError as e:
     exit(ERR_FAILED_TO_LOG_CONFIG)
 
 # initialize logger
-
 log_level = config.get_log_level()
 print(f'Set log level to {log_level}')
 
@@ -32,15 +30,12 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
                     level=log_level)
 
 # initialize database
-
 database = KuriDatabase()
 
 # initialize token manager
-
 token_manager = TokenManager(database)
 
 # initialize telegram framework
-
 proxy_url = config.get_proxy_address()
 updater = Updater(token=config.get_bot_token(), use_context=True, request_kwargs={
     'proxy_url': proxy_url
@@ -51,7 +46,6 @@ register = CommandRegister(dispatcher)
 
 
 # register command handlers
-
 @register.user_command('start')
 def start(update: Update, context: CallbackContext):
     context.bot.send_message(chat_id=update.effective_chat.id, text=
