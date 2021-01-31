@@ -70,6 +70,7 @@ def register(update: Update, context: CallbackContext):
         logging.debug(f'The user has already registered. Previous token: {token}')
     else:
         token = token_manager.generate_unused_token()
+        database.set_user_token_by_user_id(sender_id, token)
         logging.debug(f'New token: {token}')
     context.bot.send_message(chat_id=update.effective_chat.id, text=f'Your token: {token}\nTreat this as a password!')
 
