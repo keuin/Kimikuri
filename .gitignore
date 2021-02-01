@@ -8,5 +8,8 @@ venv
 # config file
 kimikuri.json
 
+# persistent file
+users.json
+
 # python binaries
 __pycache__

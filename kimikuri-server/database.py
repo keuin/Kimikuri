@@ -1,3 +1,4 @@
+import json
 from threading import Lock
 from typing import Optional, Iterator
 
@@ -18,6 +19,17 @@ class UserDict:
         self.token = token
         self.chat_id = chat_id
 
+    def to_dict(self) -> dict:
+        return {
+            'user_id': self.user_id,
+            'token': self.token,
+            'chat_id': self.chat_id
+        }
+
+    @staticmethod
+    def from_dict(d: dict):
+        return UserDict(d['user_id'], d['token'], d['chat_id'])
+
 
 class KuriDatabase:
     """
@@ -29,6 +41,39 @@ class KuriDatabase:
     __lock_user_structure = Lock()  # lock for two dicts above
     __lock_is_user_registered = Lock()
     __lock_register = Lock()
+
+    __dirty = False
+
+    @staticmethod
+    def from_file(fp):
+        """
+        Load serialized (array-like) database from file.
+        """
+        j = json.load(fp)
+        if not isinstance(j, list):
+            raise ValueError('JSON object must be a list')
+        db = KuriDatabase()
+        for d in j:
+            user = UserDict.from_dict(d)
+            db.__users_by_token[user.token] = user
+            db.__users_by_user_id[user.user_id] = user
+        return db
+
+    def to_file(self, fp):
+        """
+        Save database to file.
+        """
+
+        with self.__lock_user_structure:
+            l = [x.to_dict() for x in self.__users_by_token.values()]
+        json.dump(l, fp, indent=4)
+        self.__dirty = False
+
+    def is_dirty(self):
+        """
+        If modifications have not been written back to disk.
+        """
+        return self.__dirty
 
     def is_user_registered(self, user_id=None, token=None) -> bool:
         """
@@ -58,6 +103,7 @@ class KuriDatabase:
             with self.__lock_user_structure:
                 self.__users_by_token[token] = user
                 self.__users_by_user_id[user_id] = user
+                self.__dirty = True
 
     def get_user(self, user_id=None, token=None) -> Optional[UserDict]:
         if user_id:
@@ -67,14 +113,14 @@ class KuriDatabase:
         else:
             raise ValueError('Either user_id or token must be provided')
 
-        if d:
-            return UserDict(user_id=d.user_id, token=d.token, chat_id=d.chat_id)
+        if isinstance(d, UserDict):
+            return UserDict.from_dict(d.to_dict())
         else:
             return None
 
     def get_users(self) -> Iterator[UserDict]:
         with self.__lock_user_structure:
-            return filter(lambda x: isinstance(x, UserDict), self.__users_by_token.items())
+            return filter(lambda x: isinstance(x, UserDict), self.__users_by_token.values())
 
     # def get_user_token_by_user_id(self, user_id: int) -> Optional[str]:
     #     """

@@ -2,6 +2,10 @@ import json
 from typing import Optional
 
 
+class NoSuchConfigEntryException(Exception):
+    pass
+
+
 class KuriConfig(dict):
     """
     JSON Keys:
@@ -15,12 +19,25 @@ class KuriConfig(dict):
             j = json.load(f)
             for k, v in j.items():
                 self[k] = v
+        essentials = [
+            ('db_file', 'users.json'),
+            'bot_token'
+        ]
+        for e in essentials:
+            if isinstance(e, str):
+                k = e
+                txt = ''
+            else:
+                k, txt = e
+            if k not in self:
+                raise NoSuchConfigEntryException(
+                    f'{k} is not defined in configuration file. ' +
+                    (f'Recommend value is `{txt}`.' if txt else f'You must set it in `{file_name}`.'))
 
     def is_debug_mode(self) -> bool:
         return bool(self.get('debug'))
 
     def get_bot_token(self) -> str:
-        assert 'bot_token' in self, 'bot_token is not defined in configuration file.'
         return self.get('bot_token')
 
     def get_proxy_address(self) -> Optional[str]:
@@ -38,3 +55,6 @@ class KuriConfig(dict):
     def get_max_length(self) -> int:
         max_length = self.get('max_length')
         return max_length if isinstance(max_length, int) else 100
+
+    def get_database_file_name(self) -> str:
+        return self.get('db_file')

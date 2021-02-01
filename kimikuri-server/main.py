@@ -1,5 +1,7 @@
 import logging
+import os
 import platform
+import time
 from threading import Thread
 
 import uvicorn
@@ -18,8 +20,11 @@ from token_manager import TokenManager
 
 CONFIG_FILE = 'kimikuri.json'
 ERR_FAILED_TO_LOG_CONFIG = -10
-KURI_VERSION = '0.1.0'
+ERR_FAILED_TO_LOAD_DATABASE = -11
+KURI_VERSION = '0.2.0'
 KURI_VERSION_SUFFIX = 'alpha'
+DEBUG_HOST = "0.0.0.0"
+DEBUG_PORT = 8000
 
 # initialize config
 print(f'Loading config file {CONFIG_FILE}...')
@@ -43,7 +48,37 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
                     level=log_level)
 
 # initialize database
-database = KuriDatabase()
+if os.path.isfile(db_file_name := config.get_database_file_name()):
+    try:
+        # load database form file
+        with open(db_file_name, 'r', encoding='utf-8') as f:
+            database = KuriDatabase.from_file(f)
+        print(f'Loaded {sum(1 for _ in database.get_users())} user(s) into memory.')
+    except IOError as e:
+        logging.error(f'Failed to load database file `{db_file_name}`: {e}')
+        exit(ERR_FAILED_TO_LOAD_DATABASE)
+else:
+    database = KuriDatabase()
+    print(f'User database file does not exist. Create an empty one.')
+
+
+def __save_database():
+    logging.debug('Database save thread is starting...')
+    while True:
+        time.sleep(10)
+        try:
+            if database.is_dirty():
+                with open(db_file_name, 'w', encoding='utf-8') as f:
+                    database.to_file(f)
+                logging.info('Saved the database.')
+        except IOError as e:
+            logging.error(f'Failed to save database to file `{db_file_name}`: {e}')
+
+
+db_save_thread = Thread(target=__save_database)
+db_save_thread.setName('DatabaseSaveThread')
+db_save_thread.setDaemon(True)
+db_save_thread.start()
 
 # initialize token manager
 token_manager = TokenManager(database)
@@ -134,10 +169,11 @@ updater.start_polling()
 
 # start internal debugging uvicorn server
 def __uvicorn_runner():
-    uvicorn.run(webapi, host="0.0.0.0", port=8000)
+    uvicorn.run(webapi, host=DEBUG_HOST, port=DEBUG_PORT)
 
 
 if __name__ == "__main__":
+
     if debug_mode:
         print('Start internal uvicorn server (for debugging only)')
         uvicorn_thread = Thread(target=__uvicorn_runner)
