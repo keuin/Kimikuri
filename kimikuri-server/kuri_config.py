@@ -2,7 +2,11 @@ import json
 from typing import Optional
 
 
-class NoSuchConfigEntryException(Exception):
+class BadConfigException(Exception):
+    pass
+
+
+class NoSuchConfigEntryException(BadConfigException):
     pass
 
 
@@ -34,6 +38,9 @@ class KuriConfig(dict):
                     f'{k} is not defined in configuration file. ' +
                     (f'Recommend value is `{txt}`.' if txt else f'You must set it in `{file_name}`.'))
 
+        if self.get('webhook') and 'webhook_base' not in self:
+            raise BadConfigException('`webhook_base` must be defined since `webhook` is true.')
+
     def is_debug_mode(self) -> bool:
         return bool(self.get('debug'))
 
@@ -58,3 +65,21 @@ class KuriConfig(dict):
 
     def get_database_file_name(self) -> str:
         return self.get('db_file')
+
+    def use_webhook(self) -> bool:
+        """
+        Whether to use WebHook to contact to Telegram server, instead of polling.
+        `webhook_base` must be defined if `webhook` is set to true.
+        You have to expose {webhook_base}/[0-9A-Za-z-._~]+ to Telegram,
+        and redirect all requests to them to Kimikuri like
+        localhost:{your_port}/[0-9A-Za-z-._~]+, in order to let Kimikuri register
+        an auto-generated secure webhook address.
+        """
+        return bool(self.get('webhook'))
+
+    def get_webhook_base(self) -> str:
+        base = str(self.get('webhook_base'))
+        return base + ('/' if not base.endswith('/') else '')
+
+    def get_webhook_cert_file_name(self) -> str:
+        return self.get('webhook_cert_file')
