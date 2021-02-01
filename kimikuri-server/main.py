@@ -4,6 +4,7 @@ import platform
 import time
 from queue import Queue
 from threading import Thread
+from typing import IO
 
 import fastapi
 import uvicorn
@@ -24,14 +25,14 @@ ERR_FAILED_TO_LOG_CONFIG = -10
 ERR_FAILED_TO_LOAD_DATABASE = -11
 
 # version
-KURI_VERSION = '0.3.0'
+KURI_VERSION = '0.3.1'
 KURI_VERSION_SUFFIX = 'alpha'
 
 # some basic editable configurations
 CONFIG_FILE = 'kimikuri.json'
 WEBHOOK_NONCE_LENGTH = 128
 DEBUG_HOST = "0.0.0.0"
-DEBUG_PORT = 8000
+DEBUG_PORT = 7777
 
 # initialize config
 print(f'Loading config file {CONFIG_FILE}...')
@@ -181,6 +182,12 @@ def __get_greeting_str():
     return greeting
 
 
+def stop():
+    updater.stop()
+    bot.stop_poll()
+    exit(0)
+
+
 greeting_string = __get_greeting_str()
 
 
@@ -195,18 +202,29 @@ async def webapi_send_message(token: str, message: str):
     return {'success': bool(notify(token, message))}
 
 
-@webapi.get(f'/{webhook_secret}')
+@webapi.post(f'/{webhook_secret}')
 async def webapi_webhook(request: fastapi.Request):
     if not config.use_webhook():
         return {'message': 'Uh, uhh. This makes no sense.'}  # filter out undesired requests
-    webhook_update_queue.put(Update.de_json(await request.json(), bot))
+    json_body = await request.json()
+    logger.debug(f'WebHook request: {json_body}')
+    webhook_update_queue.put(Update.de_json(json_body, bot))
 
 
 # start polling or register webhook
 if config.use_webhook():
     logger.info('Registering WebHook...')
     webhook_addr = config.get_webhook_base() + webhook_secret
-    bot.set_webhook(url=webhook_addr, certificate=config.get_webhook_cert_file_name())
+    logger.debug(f'Previous WebHook status: {bot.get_webhook_info()}')
+    bot.delete_webhook(drop_pending_updates=True)
+    if cert_file_name := config.get_webhook_cert_file_name():
+        cert = open(cert_file_name, 'rb')
+    else:
+        cert = None
+    bot.set_webhook(url=webhook_addr, certificate=cert)
+    if isinstance(cert, IO):
+        cert.close()
+    logger.debug(f'Current WebHook status: {bot.get_webhook_info()}')
 else:
     logger.info('Start polling...')
     assert updater is not None, 'Updater should have been initialized in polling mode.'
@@ -229,29 +247,33 @@ if __name__ == "__main__":
 
     print(greeting_string)
 
-    while True:
-        inp = input('>>>')
-        inp_lower = inp.lower()
-        if inp_lower == 'help' or inp_lower == 'h' or inp_lower == '?':
-            print(
-                'Usage:\n' +
-                'users: show all registered users\n' +
-                'help/h/?: show help menu\n' +
-                'exit: stop and quit'
-            )
-        elif inp_lower == 'exit':
-            print('Stopping...')
-            exit(0)
-        elif inp_lower == 'users':
-            users = database.get_users()
-            print('Users:')
-            counter = 0
-            for user in users:
-                print(f'User ID: {user.user_id}, Chat ID: {user.chat_id}, Token: {user.token}')
-                counter += 1
-            if counter:
-                print(f'{counter} user(s) totally.')
+    try:
+        while True:
+            inp = input('>>>')
+            inp_lower = inp.lower()
+            if inp_lower == 'help' or inp_lower == 'h' or inp_lower == '?':
+                print(
+                    'Usage:\n' +
+                    'users: show all registered users\n' +
+                    'help/h/?: show help menu\n' +
+                    'exit: stop and quit'
+                )
+            elif inp_lower == 'exit':
+                print('Stopping...')
+                stop()
+            elif inp_lower == 'users':
+                users = database.get_users()
+                print('Users:')
+                counter = 0
+                for user in users:
+                    print(f'User ID: {user.user_id}, Chat ID: {user.chat_id}, Token: {user.token}')
+                    counter += 1
+                if counter:
+                    print(f'{counter} user(s) totally.')
+                else:
+                    print('(no user registered)')
             else:
-                print('(no user registered)')
-        else:
-            print('Invalid input. run `help` to show usages.')
+                print('Invalid input. run `help` to show usages.')
+    except KeyboardInterrupt:
+        print('Stopping...')
+        stop()
