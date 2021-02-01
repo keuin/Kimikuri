@@ -16,6 +16,9 @@ class KuriConfig(dict):
             for k, v in j.items():
                 self[k] = v
 
+    def is_debug_mode(self) -> bool:
+        return bool(self.get('debug'))
+
     def get_bot_token(self) -> str:
         assert 'bot_token' in self, 'bot_token is not defined in configuration file.'
         return self.get('bot_token')
@@ -30,4 +33,8 @@ class KuriConfig(dict):
         level = self.get('log_level')
         if level:
             return str(level).upper()
-        return 'INFO'
+        return 'DEBUG' if self.is_debug_mode() else 'INFO'
+
+    def get_max_length(self) -> int:
+        max_length = self.get('max_length')
+        return max_length if isinstance(max_length, int) else 100
