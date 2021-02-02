@@ -25,17 +25,19 @@ ERR_FAILED_TO_LOG_CONFIG = -10
 ERR_FAILED_TO_LOAD_DATABASE = -11
 
 # version
-KURI_VERSION = '0.5.0'
+KURI_VERSION = '0.5.1'
 KURI_VERSION_SUFFIX = 'alpha'
 
 # some basic editable configurations
 # some of them can be set by environment variables:
 #   KURI_CONFIG_FILE
+#   KURI_USERS_DB_FILE
 #   KURI_LOG_FILE
 #   KURI_WEBHOOK_SECRET_LENGTH
 #   KURI_TOKEN_SIZE_BYTES
 
 CONFIG_FILE = os.environ.get('KURI_CONFIG_FILE') or 'kimikuri.json'
+USER_DB_FILE = os.environ.get('KURI_USERS_DB_FILE') or 'users.json'
 LOG_FILE = os.environ.get('KURI_LOG_FILE') or 'kimikuri.log'
 WEBHOOK_SECRET_LENGTH = os.environ.get('KURI_WEBHOOK_SECRET_LENGTH') or 128
 TOKEN_SIZE_BYTES = os.environ.get('KURI_TOKEN_SIZE_BYTES') or 32
@@ -92,14 +94,14 @@ logger.addHandler(console_handler)
 logger.addHandler(file_handler)
 
 # initialize database
-if os.path.isfile(db_file_name := config.get_database_file_name()):
+if os.path.isfile(USER_DB_FILE):
     try:
         # load database form file
-        with open(db_file_name, 'r', encoding='utf-8') as f:
+        with open(USER_DB_FILE, 'r', encoding='utf-8') as f:
             database = KuriDatabase.from_file(f)
         logger.debug(f'Loaded {sum(1 for _ in database.get_users())} user(s) into memory.')
     except IOError as e:
-        logger.error(f'Failed to load database file `{db_file_name}`: {e}')
+        logger.error(f'Failed to load database file `{USER_DB_FILE}`: {e}')
         exit(ERR_FAILED_TO_LOAD_DATABASE)
 else:
     database = KuriDatabase()
@@ -115,11 +117,11 @@ def __save_database_loop():
         __save_database_loop_interrupt_event.wait(10)
         try:
             if database.is_dirty():
-                with open(db_file_name, 'w', encoding='utf-8') as f:
+                with open(USER_DB_FILE, 'w', encoding='utf-8') as f:
                     database.to_file(f)
                 __logger.info('Saved the database.')
         except IOError as e:
-            __logger.error(f'Failed to save database to file `{db_file_name}`: {e}')
+            __logger.error(f'Failed to save database to file `{USER_DB_FILE}`: {e}')
     __logger.debug('Thread stopped.')
 
 
@@ -136,6 +138,8 @@ webapi = FastAPI()
 
 # initialize bot and telegram framework
 proxy_url = config.get_proxy_address()
+if proxy_url:
+    logger.info(f'Using proxy {proxy_url} to connect to Telegram API.')
 bot = Bot(token=config.get_bot_token(), request=Request(
     proxy_url=proxy_url,
     con_pool_size=config.get_pool_connection_size(),

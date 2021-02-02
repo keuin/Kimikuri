@@ -69,8 +69,8 @@ class KuriConfig(dict):
         max_length = self.get('max_length')
         return max_length if isinstance(max_length, int) else 100
 
-    def get_database_file_name(self) -> str:
-        return self.get('users_db_file')
+    # def get_database_file_name(self) -> str:
+    #     return self.get('users_db_file')
 
     def use_webhook(self) -> bool:
         """
