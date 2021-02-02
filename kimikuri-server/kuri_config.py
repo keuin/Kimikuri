@@ -12,43 +12,49 @@ class NoSuchConfigEntryException(BadConfigException):
 
 class KuriConfig(dict):
     """
-    JSON Keys:
-    - bot_token
-    - proxy (optional)
+    JSON Keys: (non-optional options are marked with *)
+    - db_file *
+    - debug
+    - log_level
+    - max_length
+    - bot.token *
+    - bot.proxy
+    - bot.pool_connection_size
+    - bot.connect_timeout_seconds
+    - bot.read_timeout_seconds
+    - webhook
+    - webhook.use_webhook
+    - webhook.base * (if use_webhook is `true`)
+    - webhook.cert_file
     """
 
     def __init__(self, file_name):
         dict.__init__(self)
         with open(file_name, encoding='utf-8') as f:
             j = json.load(f)
-            for k, v in j.items():
-                self[k] = v
+            for assertion, v in j.items():
+                self[assertion] = v
         essentials = [
-            ('db_file', 'users.json'),
-            'bot_token'
+            (lambda x: 'db_file' in x, 'db_file'),
+            (lambda x: 'token' in (x.get('bot') or dict()), 'bot.token')
         ]
-        for e in essentials:
-            if isinstance(e, str):
-                k = e
-                txt = ''
-            else:
-                k, txt = e
-            if k not in self:
+        for assertion, name in essentials:
+            if not assertion(self):
                 raise NoSuchConfigEntryException(
-                    f'{k} is not defined in configuration file. ' +
-                    (f'Recommend value is `{txt}`.' if txt else f'You must set it in `{file_name}`.'))
+                    f'{name} is not defined in configuration file. '
+                )
 
-        if self.get('webhook') and 'webhook_base' not in self:
-            raise BadConfigException('`webhook_base` must be defined since `webhook` is true.')
+        if self.use_webhook() and 'base' not in self.get('webhook'):
+            raise BadConfigException('`webhook.base` must be defined since `webhook` is set to `true`.')
 
     def is_debug_mode(self) -> bool:
         return bool(self.get('debug'))
 
     def get_bot_token(self) -> str:
-        return self.get('bot_token')
+        return (self.get('bot') or dict()).get('token')
 
     def get_proxy_address(self) -> Optional[str]:
-        return self.get('proxy')
+        return (self.get('bot') or dict()).get('proxy')
 
     def get_log_level(self) -> str:
         """
@@ -75,11 +81,20 @@ class KuriConfig(dict):
         localhost:{your_port}/[0-9A-Za-z-._~]+, in order to let Kimikuri register
         an auto-generated secure webhook address.
         """
-        return bool(self.get('webhook'))
+        return bool((self.get('webhook') or dict()).get('use_webhook'))
 
     def get_webhook_base(self) -> str:
-        base = str(self.get('webhook_base'))
+        base = str((self.get('webhook') or dict()).get('base'))
         return base + ('/' if not base.endswith('/') else '')
 
     def get_webhook_cert_file_name(self) -> str:
-        return self.get('webhook_cert_file')
+        return (self.get('webhook') or dict()).get('cert_file')
+
+    def get_pool_connection_size(self) -> int:
+        return (self.get('bot') or dict()).get('pool_connection_size') or 8
+
+    def get_bot_connect_timeout_seconds(self) -> int:
+        return (self.get('bot') or dict()).get('connect_timeout_seconds') or 5
+
+    def get_bot_read_timeout_seconds(self) -> int:
+        return (self.get('bot') or dict()).get('read_timeout_seconds') or 5

@@ -19,8 +19,8 @@ def safe_base64_decode(string):
     return base64.urlsafe_b64decode(string)
 
 
-def generate_secret(length_bytes: int = 128):
-    return safe_base64_encode(os.urandom(length_bytes))
+def generate_secret(secret_bytes: int = 128):
+    return safe_base64_encode(os.urandom(secret_bytes))
 
 
 if __name__ == '__main__':

@@ -1,3 +1,4 @@
+import logging
 import os
 from threading import Lock
 
@@ -5,13 +6,16 @@ import base58
 
 from database import KuriDatabase
 
+logger = logging.getLogger('TokenManager')
 
 class TokenManager:
     __token_generating_lock = Lock()
 
-    def __init__(self, database: KuriDatabase):
+    def __init__(self, database: KuriDatabase, token_size: int = 32):
         self.__database = database
-        self.__present_tokens = []  # TODO: load from db
+        self.__token_size = token_size
+        self.__present_tokens = list(map(lambda x: x.token, database.get_users()))
+        logger.debug(f'Loaded {len(self.__present_tokens)} used token(s).')
 
     def generate_unused_token(self) -> str:
         """
@@ -20,7 +24,7 @@ class TokenManager:
         """
 
         def __gen():
-            return str(base58.b58encode(os.urandom(32)), 'utf-8')
+            return str(base58.b58encode(os.urandom(self.__token_size)), 'utf-8')
 
         token = None
         with self.__token_generating_lock:

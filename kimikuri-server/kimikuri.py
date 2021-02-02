@@ -2,6 +2,7 @@ import logging.config
 import os
 import platform
 import time
+from logging import StreamHandler, FileHandler, Formatter
 from queue import Queue
 from threading import Thread
 from typing import IO
@@ -20,19 +21,28 @@ from kuri_config import KuriConfig
 from secret_generator import generate_secret
 from token_manager import TokenManager
 
+# def __disable_logging():
+#     while True:
+#         time.sleep(0.1)
+#         logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
+#
+# Thread(target=__disable_logging).start()
+
 # error numbers
 ERR_FAILED_TO_LOG_CONFIG = -10
 ERR_FAILED_TO_LOAD_DATABASE = -11
 
 # version
-KURI_VERSION = '0.3.1'
+KURI_VERSION = '0.4.0'
 KURI_VERSION_SUFFIX = 'alpha'
 
 # some basic editable configurations
 CONFIG_FILE = 'kimikuri.json'
-WEBHOOK_NONCE_LENGTH = 128
+LOG_FILE = 'kimikuri.log'
+WEBHOOK_SECRET_LENGTH = 128
 DEBUG_HOST = "0.0.0.0"
 DEBUG_PORT = 7777
+TOKEN_SIZE_BYTES = 32
 
 # initialize config
 print(f'Loading config file {CONFIG_FILE}...')
@@ -49,18 +59,29 @@ if debug_mode := config.is_debug_mode():
     print('WARNING: Kimikuri is running in debug mode.')
 
 # initialize logger
-# logging.config.dictConfig({
-#     'version': 1,
-#     'disable_existing_loggers': True,
-# })
-# TODO: configure logger with handler and write them to file and console.
 # TODO: set 3rd-party libs' logger to WARN or ERR
 log_level = config.get_log_level()
 print(f'Set log level to {log_level}')
-logger = logging.getLogger('KimikuriMain')
+logger = logging.getLogger('Kimikuri')
 logger.setLevel(log_level)
-logging.basicConfig(format='[%(asctime)s][%(name)s][%(levelname)s] %(message)s',
-                    level=log_level)
+# logging.basicConfig(
+#     format='[%(asctime)s][%(name)s][%(levelname)s] %(message)s',
+#     level=log_level
+# )
+
+# set log handlers (to file & stderr)
+log_formatter = Formatter('[%(asctime)s][%(name)s][%(levelname)s] %(message)s')
+
+console_handler = StreamHandler()
+console_handler.setLevel(log_level)
+console_handler.setFormatter(log_formatter)
+
+file_handler = FileHandler(LOG_FILE)
+file_handler.setLevel(log_level)
+file_handler.setFormatter(log_formatter)
+
+logger.addHandler(console_handler)
+logger.addHandler(file_handler)
 
 # initialize database
 if os.path.isfile(db_file_name := config.get_database_file_name()):
@@ -68,13 +89,13 @@ if os.path.isfile(db_file_name := config.get_database_file_name()):
         # load database form file
         with open(db_file_name, 'r', encoding='utf-8') as f:
             database = KuriDatabase.from_file(f)
-        print(f'Loaded {sum(1 for _ in database.get_users())} user(s) into memory.')
+        logger.debug(f'Loaded {sum(1 for _ in database.get_users())} user(s) into memory.')
     except IOError as e:
         logger.error(f'Failed to load database file `{db_file_name}`: {e}')
         exit(ERR_FAILED_TO_LOAD_DATABASE)
 else:
     database = KuriDatabase()
-    print(f'User database file does not exist. Create an empty one.')
+    logger.debug(f'User database file does not exist. Create an empty one.')
 
 
 def __save_database():
@@ -96,19 +117,26 @@ db_save_thread.setDaemon(True)
 db_save_thread.start()
 
 # initialize token manager
-token_manager = TokenManager(database)
+token_manager = TokenManager(database, TOKEN_SIZE_BYTES)
 
 # initialize FastAPI core
 webapi = FastAPI()
 
 # initialize bot and telegram framework
 proxy_url = config.get_proxy_address()
-bot = Bot(token=config.get_bot_token(), request=Request(proxy_url=proxy_url))
+bot = Bot(token=config.get_bot_token(), request=Request(
+    proxy_url=proxy_url,
+    con_pool_size=config.get_pool_connection_size(),
+    connect_timeout=config.get_bot_connect_timeout_seconds(),
+    read_timeout=config.get_bot_read_timeout_seconds()
+))
+
+logger.info('Connecting to Telegram...')
 
 logger.info(f'Recognized bot as {bot.get_me().username}')
 
 # generate secret and bind webhook (even if it is not used, for convince and secure reason)
-webhook_secret = str(generate_secret(WEBHOOK_NONCE_LENGTH), encoding='ascii')
+webhook_secret = str(generate_secret(WEBHOOK_SECRET_LENGTH), encoding='ascii')
 logger.debug(f'WebHook secret: {webhook_secret}')
 
 if config.use_webhook():
@@ -233,13 +261,13 @@ else:
 
 # start internal debugging uvicorn server
 def __uvicorn_runner():
-    uvicorn.run(webapi, host=DEBUG_HOST, port=DEBUG_PORT)
+    uvicorn.run(webapi, host=DEBUG_HOST, port=DEBUG_PORT, log_level='warning')
 
 
 if __name__ == "__main__":
 
     if debug_mode:
-        print('Start internal uvicorn server (for debugging only)')
+        print('Starting internal uvicorn server (for debugging only)...')
         uvicorn_thread = Thread(target=__uvicorn_runner)
         uvicorn_thread.setName('UvicornRunner')
         uvicorn_thread.setDaemon(True)
