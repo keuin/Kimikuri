@@ -4,7 +4,7 @@ from threading import Lock
 
 import base58
 
-from database import KuriDatabase
+from kuri.database import KuriDatabase
 
 logger = logging.getLogger('TokenManager')
 

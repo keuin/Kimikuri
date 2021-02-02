@@ -1,10 +1,9 @@
 import logging.config
 import os
 import platform
-import time
 from logging import StreamHandler, FileHandler, Formatter
 from queue import Queue
-from threading import Thread
+from threading import Thread, Event
 from typing import IO
 
 import fastapi
@@ -15,34 +14,43 @@ from telegram import Bot, Update
 from telegram.ext import Updater, CallbackContext, Dispatcher
 from telegram.utils.request import Request
 
-from command_register import CommandRegister
-from database import KuriDatabase
-from kuri_config import KuriConfig
-from secret_generator import generate_secret
-from token_manager import TokenManager
-
-# def __disable_logging():
-#     while True:
-#         time.sleep(0.1)
-#         logging.getLogger("uvicorn.error").setLevel(logging.WARNING)
-#
-# Thread(target=__disable_logging).start()
+from kuri.command_register import CommandRegister
+from kuri.database import KuriDatabase
+from kuri.kuri_config import KuriConfig
+from kuri.secret_generator import generate_secret
+from kuri.token_manager import TokenManager
 
 # error numbers
 ERR_FAILED_TO_LOG_CONFIG = -10
 ERR_FAILED_TO_LOAD_DATABASE = -11
 
 # version
-KURI_VERSION = '0.4.0'
+KURI_VERSION = '0.5.0'
 KURI_VERSION_SUFFIX = 'alpha'
 
 # some basic editable configurations
-CONFIG_FILE = 'kimikuri.json'
-LOG_FILE = 'kimikuri.log'
-WEBHOOK_SECRET_LENGTH = 128
+# some of them can be set by environment variables:
+#   KURI_CONFIG_FILE
+#   KURI_LOG_FILE
+#   KURI_WEBHOOK_SECRET_LENGTH
+#   KURI_TOKEN_SIZE_BYTES
+
+CONFIG_FILE = os.environ.get('KURI_CONFIG_FILE') or 'kimikuri.json'
+LOG_FILE = os.environ.get('KURI_LOG_FILE') or 'kimikuri.log'
+WEBHOOK_SECRET_LENGTH = os.environ.get('KURI_WEBHOOK_SECRET_LENGTH') or 128
+TOKEN_SIZE_BYTES = os.environ.get('KURI_TOKEN_SIZE_BYTES') or 32
+
 DEBUG_HOST = "0.0.0.0"
 DEBUG_PORT = 7777
-TOKEN_SIZE_BYTES = 32
+
+print('======== BASIC CONFIG ========')
+print(f'Configuration file: {CONFIG_FILE}')
+print(f'Log file: {LOG_FILE}')
+print(f'WebHook secret length: {WEBHOOK_SECRET_LENGTH}')
+print(f'Token size bytes: {TOKEN_SIZE_BYTES}')
+print('==============================')
+
+kimikuri_running = True  # flag used to stop internal threads
 
 # initialize config
 print(f'Loading config file {CONFIG_FILE}...')
@@ -62,7 +70,7 @@ if debug_mode := config.is_debug_mode():
 # TODO: set 3rd-party libs' logger to WARN or ERR
 log_level = config.get_log_level()
 print(f'Set log level to {log_level}')
-logger = logging.getLogger('Kimikuri')
+logger = logging.getLogger('kimikuri')
 logger.setLevel(log_level)
 # logging.basicConfig(
 #     format='[%(asctime)s][%(name)s][%(levelname)s] %(message)s',
@@ -97,21 +105,25 @@ else:
     database = KuriDatabase()
     logger.debug(f'User database file does not exist. Create an empty one.')
 
+__save_database_loop_interrupt_event = Event()  # used to interrupt loop in `__save_database_loop`
 
-def __save_database():
-    logger.debug('Database save thread is starting...')
-    while True:
-        time.sleep(10)
+
+def __save_database_loop():
+    __logger = logger.getChild('database-save-loop')
+    __logger.debug('Thread starting...')
+    while kimikuri_running:
+        __save_database_loop_interrupt_event.wait(10)
         try:
             if database.is_dirty():
                 with open(db_file_name, 'w', encoding='utf-8') as f:
                     database.to_file(f)
-                logger.info('Saved the database.')
+                __logger.info('Saved the database.')
         except IOError as e:
-            logger.error(f'Failed to save database to file `{db_file_name}`: {e}')
+            __logger.error(f'Failed to save database to file `{db_file_name}`: {e}')
+    __logger.debug('Thread stopped.')
 
 
-db_save_thread = Thread(target=__save_database)
+db_save_thread = Thread(target=__save_database_loop)
 db_save_thread.setName('DatabaseSaveThread')
 db_save_thread.setDaemon(True)
 db_save_thread.start()
@@ -133,11 +145,11 @@ bot = Bot(token=config.get_bot_token(), request=Request(
 
 logger.info('Connecting to Telegram...')
 
-logger.info(f'Recognized bot as {bot.get_me().username}')
+logger.info(f'Recognized bot as {bot.get_me().username}.')
 
 # generate secret and bind webhook (even if it is not used, for convince and secure reason)
 webhook_secret = str(generate_secret(WEBHOOK_SECRET_LENGTH), encoding='ascii')
-logger.debug(f'WebHook secret: {webhook_secret}')
+logger.debug(f'WebHook secret ({len(webhook_secret)}): {webhook_secret}')
 
 if config.use_webhook():
     logger.info('Setting up bot in WebHook mode...')
@@ -179,9 +191,10 @@ def register(update: Update, context: CallbackContext):
         token = token_manager.generate_unused_token()
         database.register(user_id=sender_id, token=token, chat_id=chat_id)
         logger.debug(f'Registered user {sender_id} with chat_id={chat_id}, token={token}')
-    context.bot.send_message(chat_id=update.effective_chat.id, text=
-    f'Your token: {token}\n' +
-    f'Treat this as a password!')
+    context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=f'Your token: {token}\nTreat this as a password!'
+    )
 
 
 # start webhook dispatcher thread
@@ -211,8 +224,15 @@ def __get_greeting_str():
 
 
 def stop():
-    updater.stop()
-    bot.stop_poll()
+    """
+    Stop kimikuri.
+    """
+    global kimikuri_running
+    print('Stopping...')
+    kimikuri_running = False  # set main running flag to false
+    __save_database_loop_interrupt_event.set()  # interrupt database saving loop
+    updater.stop() if updater else None  # stop bot updater
+    dispatcher.stop()  # stop bot dispatcher
     exit(0)
 
 
@@ -273,6 +293,7 @@ if __name__ == "__main__":
         uvicorn_thread.setDaemon(True)
         uvicorn_thread.start()
 
+    print('Hello!')
     print(greeting_string)
 
     try:
@@ -287,7 +308,6 @@ if __name__ == "__main__":
                     'exit: stop and quit'
                 )
             elif inp_lower == 'exit':
-                print('Stopping...')
                 stop()
             elif inp_lower == 'users':
                 users = database.get_users()
@@ -303,5 +323,4 @@ if __name__ == "__main__":
             else:
                 print('Invalid input. run `help` to show usages.')
     except KeyboardInterrupt:
-        print('Stopping...')
         stop()

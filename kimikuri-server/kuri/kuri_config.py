@@ -13,7 +13,7 @@ class NoSuchConfigEntryException(BadConfigException):
 class KuriConfig(dict):
     """
     JSON Keys: (non-optional options are marked with *)
-    - db_file *
+    - users_db_file *
     - debug
     - log_level
     - max_length
@@ -35,7 +35,7 @@ class KuriConfig(dict):
             for assertion, v in j.items():
                 self[assertion] = v
         essentials = [
-            (lambda x: 'db_file' in x, 'db_file'),
+            (lambda x: 'users_db_file' in x, 'users_db_file'),
             (lambda x: 'token' in (x.get('bot') or dict()), 'bot.token')
         ]
         for assertion, name in essentials:
@@ -70,7 +70,7 @@ class KuriConfig(dict):
         return max_length if isinstance(max_length, int) else 100
 
     def get_database_file_name(self) -> str:
-        return self.get('db_file')
+        return self.get('users_db_file')
 
     def use_webhook(self) -> bool:
         """
