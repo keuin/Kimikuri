@@ -25,7 +25,7 @@ ERR_FAILED_TO_LOG_CONFIG = -10
 ERR_FAILED_TO_LOAD_DATABASE = -11
 
 # version
-KURI_VERSION = '0.5.1'
+KURI_VERSION = '0.6.0'
 KURI_VERSION_SUFFIX = 'alpha'
 
 # some basic editable configurations
