@@ -83,6 +83,14 @@ class KuriConfig(dict):
         """
         return bool((self.get('webhook') or dict()).get('use_webhook'))
 
+    def get_api_base(self) -> str:
+        """
+        Get the HTTP URI base of Kimikuri API.
+        This is only used in `/howto` manual generation.
+        """
+        base = self.get('api_base') or 'https://kimikuri.keuin.cc'
+        return (base + '/') if not base.endswith('/') else base
+
     def get_webhook_base(self) -> str:
         base = str((self.get('webhook') or dict()).get('base'))
         return base + ('/' if not base.endswith('/') else '')

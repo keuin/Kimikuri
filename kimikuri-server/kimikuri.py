@@ -42,6 +42,7 @@ LOG_FILE = os.environ.get('KURI_LOG_FILE') or 'kimikuri.log'
 WEBHOOK_SECRET_LENGTH = os.environ.get('KURI_WEBHOOK_SECRET_LENGTH') or 128
 TOKEN_SIZE_BYTES = os.environ.get('KURI_TOKEN_SIZE_BYTES') or 32
 
+API_SEND_MESSAGE = 'message'
 DEBUG_HOST = "0.0.0.0"
 DEBUG_PORT = 7777
 
@@ -170,19 +171,19 @@ else:
     webhook_update_queue = None  # to eliminate IDE warning
 
 # register command handlers
-register = CommandRegister(dispatcher)
+command_register = CommandRegister(dispatcher)
 
 
-@register.user_command('start')
+@command_register.user_command('start', 'show this help menu')
 def start(update: Update, context: CallbackContext):
-    context.bot.send_message(chat_id=update.effective_chat.id, text=
-    "Hello, this is Kimikuri!\n" +
-    "Type '/start' to show this help menu.\n" +
-    "Type '/register' to get your private token.\n")
+    context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text="Hello, this is Kimikuri!\n" + command_register.get_manual_string()
+    )
     # context.bot.send_message(chat_id=update.effective_chat.id, text=str(update))
 
 
-@register.user_command('register')
+@command_register.user_command('register', 'get your private token')
 def register(update: Update, context: CallbackContext):
     sender_id = update['message']['from_user']['id']
     chat_id = update['message']['chat_id']
@@ -198,6 +199,17 @@ def register(update: Update, context: CallbackContext):
     context.bot.send_message(
         chat_id=update.effective_chat.id,
         text=f'Your token: {token}\nTreat this as a password!'
+    )
+
+
+@command_register.user_command('howto', 'learn how to let Kimikuri send you messages')
+def howto(update: Update, context: CallbackContext):
+    context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text='First, get your token by using `/register`.\n' +
+             f'Then, GET or POST on {config.get_webhook_base()}{API_SEND_MESSAGE} with parameter ' +
+             '`token` and `message`.\n' +
+             'Finally, Kimikuri will repeat that message to you, via Telegram!'
     )
 
 
@@ -249,7 +261,7 @@ async def webapi_root():
     return greeting_string
 
 
-@webapi.get('/message')
+@webapi.get('/' + API_SEND_MESSAGE)
 async def webapi_send_message(token: str, message: str):
     return {'success': bool(notify(token, message))}
 
