@@ -26,7 +26,7 @@ ERR_FAILED_TO_LOG_CONFIG = -10
 ERR_FAILED_TO_LOAD_DATABASE = -11
 
 # version
-KURI_VERSION = '0.6.1'
+KURI_VERSION = '0.6.2'
 KURI_VERSION_SUFFIX = 'alpha'
 
 # some basic editable configurations
@@ -225,7 +225,7 @@ def howto(update: Update, context: CallbackContext):
     context.bot.send_message(
         chat_id=update.effective_chat.id,
         text='First, get your token by using `/register`.\n' +
-             f'Then, GET or POST on {config.get_webhook_base()}{API_SEND_MESSAGE} with parameter ' +
+             f'Then, GET or POST on {config.get_api_base()}{API_SEND_MESSAGE} with parameter ' +
              '`token` and `message`.\n' +
              'Finally, Kimikuri will repeat that message to you, via Telegram!'
     )
