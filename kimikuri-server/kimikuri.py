@@ -1,6 +1,7 @@
 import logging.config
 import os
 import platform
+import sys
 from logging import StreamHandler, FileHandler, Formatter
 from queue import Queue
 from threading import Thread, Event
@@ -25,7 +26,7 @@ ERR_FAILED_TO_LOG_CONFIG = -10
 ERR_FAILED_TO_LOAD_DATABASE = -11
 
 # version
-KURI_VERSION = '0.6.0'
+KURI_VERSION = '0.6.1'
 KURI_VERSION_SUFFIX = 'alpha'
 
 # some basic editable configurations
@@ -55,30 +56,25 @@ print('==============================')
 
 kimikuri_running = True  # flag used to stop internal threads
 
-# initialize config
-print(f'Loading config file {CONFIG_FILE}...')
-
-config = None
-try:
-    config = KuriConfig(CONFIG_FILE)
-except IOError as e:
-    print(f'Failed to load config file. {e}')
-    exit(ERR_FAILED_TO_LOG_CONFIG)
-
-# alert if run in debug mode
-if debug_mode := config.is_debug_mode():
-    print('WARNING: Kimikuri is running in debug mode.')
-
-# initialize logger
+# initialize logger in WARNING level
 # TODO: set 3rd-party libs' logger to WARN or ERR
-log_level = config.get_log_level()
-print(f'Set log level to {log_level}')
+log_level = logging.WARNING
 logger = logging.getLogger('kimikuri')
 logger.setLevel(log_level)
-# logging.basicConfig(
-#     format='[%(asctime)s][%(name)s][%(levelname)s] %(message)s',
-#     level=log_level
-# )
+
+
+# set custom exception handler to log uncaught exceptions
+def __uncaught_exception_handler(__type, __value, __traceback):
+    global logger
+    if logger:
+        logger.error(f'Uncaught exception {__type}: {__value}\nTraceback: {__traceback}')
+    else:
+        # fallback to default handler
+        __original_uncaught_exception_handler(__type, __value, __traceback)
+
+
+__original_uncaught_exception_handler = sys.excepthook
+sys.excepthook = __uncaught_exception_handler
 
 # set log handlers (to file & stderr)
 log_formatter = Formatter('[%(asctime)s][%(name)s][%(levelname)s] %(message)s')
@@ -93,6 +89,28 @@ file_handler.setFormatter(log_formatter)
 
 logger.addHandler(console_handler)
 logger.addHandler(file_handler)
+
+# initialize config after the logger is initialized,
+# to save log of uncaught exceptions into file
+print(f'Loading config file {CONFIG_FILE}...')
+
+config = None
+try:
+    config = KuriConfig(CONFIG_FILE)
+except IOError as e:
+    print(f'Failed to load config file. {e}')
+    exit(ERR_FAILED_TO_LOG_CONFIG)
+
+# alert if run in debug mode
+if debug_mode := config.is_debug_mode():
+    print('WARNING: Kimikuri is running in debug mode.')
+
+# update log level when the config is loaded
+log_level = config.get_log_level()
+logger.setLevel(log_level)
+console_handler.setLevel(log_level)
+file_handler.setLevel(log_level)
+print(f'Set log level to {log_level}.')
 
 # initialize database
 if os.path.isfile(USER_DB_FILE):
