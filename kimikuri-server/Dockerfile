@@ -30,4 +30,4 @@ EXPOSE 8080
 
 ENTRYPOINT ['uvicorn', 'kimikuri:webapi']
 
-CMD ['--host 0.0.0.0', '--port 8080']
+CMD ['--host 0.0.0.0 --port 8080']
