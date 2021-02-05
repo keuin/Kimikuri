@@ -20,14 +20,15 @@ class KimikuriClient:
         self.__token = token
         self.__logger = logging.getLogger(KimikuriClient.__name__)
 
-    def send_message(self, message: str) -> bool:
+    def send_message(self, message: str, **kwargs) -> bool:
         """
         Let Kimikuri send you a message.
         :param message: the message text.
+        :param kwargs: other arguments passed to requests.get method. (note that `url` and `params` are already used)
         :return: if success
         """
 
-        r = requests.get(self.__api_root + 'message', params={'token': self.__token, 'message': message})
+        r = requests.get(self.__api_root + 'message', params={'token': self.__token, 'message': message}, **kwargs)
 
         if r.status_code != 200:
             self.__logger.error(f'Bad HTTP status code: {r.status_code}')
