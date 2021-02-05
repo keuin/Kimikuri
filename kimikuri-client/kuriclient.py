@@ -14,9 +14,9 @@ class KimikuriClient:
         :param api_root: the Kimikuri server api URL. Official API (from Keuin) is the default.
         :param token: the token for your Telegram account on Kimikuri.
         """
-        if not api_root.endswith('/'):
+        if api_root and not api_root.endswith('/'):
             api_root += '/'
-        self.__api_root = api_root if len(api_root) > len('http://') else 'https://kimikuri.keuin.cc/api/'
+        self.__api_root = api_root if api_root and len(api_root) > len('http://') else 'https://kimikuri.keuin.cc/api/'
         self.__token = token
         self.__logger = logging.getLogger(KimikuriClient.__name__)
 
