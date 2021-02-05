@@ -28,6 +28,4 @@ RUN pip install -r requirements.txt -i ${pip_source}
 
 EXPOSE 8080
 
-ENTRYPOINT ["uvicorn", "kimikuri:webapi"]
-
-CMD ["--host 0.0.0.0", "--port 8080"]
+ENTRYPOINT uvicorn --host ${HOST:-0.0.0.0} --port ${PORT:-8080} kimikuri:webapi
