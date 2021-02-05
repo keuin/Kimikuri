@@ -88,7 +88,7 @@ class KuriConfig(dict):
         Get the HTTP URI base of Kimikuri API.
         This is only used in `/howto` manual generation.
         """
-        base = self.get('api_base') or 'https://kimikuri.keuin.cc'
+        base = self.get('api_base') or 'https://kimikuri.keuin.cc/api'
         return (base + '/') if not base.endswith('/') else base
 
     def get_webhook_base(self) -> str:
