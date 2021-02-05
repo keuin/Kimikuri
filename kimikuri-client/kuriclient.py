@@ -27,7 +27,6 @@ class KimikuriClient:
         :param kwargs: other arguments passed to requests.get method. (note that `url` and `params` are already used)
         :return: if success
         """
-
         r = requests.get(self.__api_root + 'message', params={'token': self.__token, 'message': message}, **kwargs)
 
         if r.status_code != 200:
@@ -42,9 +41,6 @@ class KimikuriClient:
 
 
 if __name__ == '__main__':
-    __is_cli = True
-
-
     def __print_help_menu():
         print('Kimikuri Client CLI')
         print('You can import this module and use `KimikuriClient` programmatically.')
