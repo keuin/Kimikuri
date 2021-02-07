@@ -40,7 +40,7 @@ KURI_VERSION_SUFFIX = 'alpha'
 CONFIG_FILE = os.environ.get('KURI_CONFIG_FILE') or 'kimikuri.json'
 USER_DB_FILE = os.environ.get('KURI_USERS_DB_FILE') or 'users.json'
 LOG_FILE = os.environ.get('KURI_LOG_FILE') or 'kimikuri.log'
-WEBHOOK_SECRET_LENGTH = os.environ.get('KURI_WEBHOOK_SECRET_LENGTH') or 128
+WEBHOOK_SECRET_LENGTH = os.environ.get('KURI_WEBHOOK_SECRET_LENGTH') or 32
 TOKEN_SIZE_BYTES = os.environ.get('KURI_TOKEN_SIZE_BYTES') or 32
 
 API_SEND_MESSAGE = 'message'
