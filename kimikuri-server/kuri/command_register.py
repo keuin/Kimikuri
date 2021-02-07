@@ -7,6 +7,7 @@ from telegram.ext import Dispatcher, CommandHandler, CallbackContext
 class CommandRegister:
     __registered_commands = dict()  # name -> {description}
     __manual = None
+    __logger = logging.getLogger('kimikuri.command_register')
 
     def __init__(self, dispatcher: Dispatcher):
         self.__dispatcher = dispatcher
@@ -27,11 +28,11 @@ class CommandRegister:
 
         def command_wrapper(func):
             if name in self.__registered_commands.keys():
-                logging.error(f'Command `{name}` has already been registered. Cannot register more than once.')
+                self.__logger.error(f'Command `{name}` has already been registered. Cannot register more than once.')
             else:
                 self.__dispatcher.add_handler(CommandHandler(name, func))
                 self.__registered_commands[name] = {'description': description}
-                logging.debug(f'Registered command {name}.')
+                self.__logger.debug(f'Registered command {name}.')
             return func
 
         return command_wrapper
