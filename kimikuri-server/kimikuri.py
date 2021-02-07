@@ -42,8 +42,8 @@ USER_DB_FILE = os.environ.get('KURI_USERS_DB_FILE') or 'users.json'
 LOG_FILE = os.environ.get('KURI_LOG_FILE') or 'kimikuri.log'
 WEBHOOK_SECRET_LENGTH = os.environ.get('KURI_WEBHOOK_SECRET_LENGTH') or 32
 TOKEN_SIZE_BYTES = os.environ.get('KURI_TOKEN_SIZE_BYTES') or 32
+API_SEND_MESSAGE = os.environ.get('KURI_API_SEND_MESSAGE_NAME') or 'message'
 
-API_SEND_MESSAGE = 'message'
 DEBUG_HOST = "0.0.0.0"
 DEBUG_PORT = 7777
 
